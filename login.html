@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ninjas KEV // Access Gate</title>
+<style>
+:root, [data-theme="dark"] {
+    --neon-cyan:   #22d3ee;
+    --neon-green:  #4ade80;
+    --neon-pink:   #f472b6;
+    --neon-amber:  #fbbf24;
+    --bg-deep:     #050913;
+    --bg-panel:    rgba(2, 8, 23, 0.88);
+    --border-glow: rgba(34, 211, 238, 0.35);
+    --grid-line:   rgba(34, 211, 238, 0.07);
+    --text-main:   #cffafe;
+    --text-muted:  #94a3b8;
+    --input-bg:    rgba(2, 6, 23, 0.92);
+    --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas',
+            'SF Mono', ui-monospace, monospace;
+}
+
+[data-theme="light"] {
+    --neon-cyan:   #0e7490;
+    --neon-green:  #15803d;
+    --neon-pink:   #be185d;
+    --neon-amber:  #b45309;
+    --bg-deep:     #f0f9ff;
+    --bg-panel:    rgba(255, 255, 255, 0.96);
+    --border-glow: rgba(14, 116, 144, 0.45);
+    --grid-line:   rgba(14, 116, 144, 0.10);
+    --text-main:   #0f172a;
+    --text-muted:  #475569;
+    --input-bg:    #f1f5f9;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+    font-family: var(--mono);
+    color: var(--text-main);
+    background:
+        radial-gradient(circle at 20% 15%, rgba(34, 211, 238, 0.18), transparent 42%),
+        radial-gradient(circle at 80% 85%, rgba(244, 114, 182, 0.14), transparent 42%),
+        linear-gradient(135deg, var(--bg-deep), #050913 55%, #0a0612);
+    background-attachment: fixed;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+[data-theme="light"] body {
+    background:
+        radial-gradient(circle at 20% 15%, rgba(14, 116, 144, 0.10), transparent 42%),
+        radial-gradient(circle at 80% 85%, rgba(190, 24, 93, 0.06), transparent 42%),
+        linear-gradient(135deg, #f0f9ff, #e0f2fe 55%, #f8fafc);
+}
+
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+        linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 100% 32px,
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 32px 100%;
+    z-index: 0;
+}
+
+body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    box-shadow: inset 0 0 180px rgba(0,0,0,0.6);
+    z-index: 1;
+}
+
+[data-theme="light"] body::after {
+    box-shadow: inset 0 0 100px rgba(255,255,255,0.6);
+}
+
+.theme-toggle {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    z-index: 10;
+    display: flex;
+    border: 1px solid var(--border-glow);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--bg-panel);
+}
+
+.theme-toggle button {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 8px 14px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.2s ease, background 0.2s ease;
+}
+
+.theme-toggle button:hover { color: var(--neon-cyan); }
+
+.theme-toggle button.active {
+    color: #fff;
+    background: var(--neon-cyan);
+}
+
+[data-theme="light"] .theme-toggle button.active {
+    color: #fff;
+}
+
+.login-wrap {
+    position: relative;
+    z-index: 2;
+    width: min(420px, 92vw);
+}
+
+.login-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-glow);
+    border-radius: 12px;
+    padding: 36px 32px 32px;
+    box-shadow: 0 0 40px rgba(34,211,238,0.08), 0 24px 60px rgba(0,0,0,0.25);
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.login-card:hover {
+    border-color: rgba(34,211,238,0.55);
+    box-shadow: 0 0 48px rgba(34,211,238,0.14), 0 24px 60px rgba(0,0,0,0.28);
+}
+
+.brand-row {
+    text-align: center;
+    margin-bottom: 28px;
+}
+
+.brand-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--neon-cyan);
+    letter-spacing: 0.08em;
+}
+
+[data-theme="dark"] .brand-title {
+    text-shadow: 0 0 8px rgba(34,211,238,0.5);
+}
+
+.brand-title .blink::after {
+    content: "▌";
+    margin-left: 2px;
+    color: var(--neon-green);
+    animation: blink 1s steps(1,end) infinite;
+}
+
+@keyframes blink { 50% { opacity: 0; } }
+
+.brand-sub {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-top: 6px;
+}
+
+.field {
+    margin-bottom: 20px;
+}
+
+.field label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    transition: color 0.2s ease;
+}
+
+.field:focus-within label { color: var(--neon-cyan); }
+
+.field input {
+    width: 100%;
+    font-family: var(--mono);
+    font-size: 14px;
+    padding: 14px 16px;
+    background: var(--input-bg);
+    border: 1px solid var(--border-glow);
+    border-radius: 6px;
+    color: var(--text-main);
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.field input::placeholder { color: var(--text-muted); opacity: 0.65; }
+
+.field input:hover {
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 10px rgba(34,211,238,0.12);
+}
+
+.field input:focus {
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 0 2px rgba(34,211,238,0.18);
+}
+
+.btn-enter {
+    width: 100%;
+    margin-top: 8px;
+    padding: 15px 20px;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #fff;
+    background: linear-gradient(135deg, var(--neon-cyan), #0891b2);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: box-shadow 0.25s ease, opacity 0.2s ease;
+}
+
+.btn-enter:hover {
+    box-shadow: 0 0 24px rgba(34,211,238,0.45);
+}
+
+.btn-enter:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.err-msg {
+    margin-top: 14px;
+    font-size: 11px;
+    color: #ef4444;
+    text-align: center;
+    min-height: 16px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.err-msg.show { opacity: 1; }
+
+.footer-hint {
+    margin-top: 22px;
+    text-align: center;
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.12em;
+}
+
+.footer-hint span { color: var(--neon-amber); }
+</style>
+</head>
+<body>
+
+<div class="theme-toggle">
+    <button type="button" id="btnDark" class="active">Dark</button>
+    <button type="button" id="btnLight">Light</button>
+</div>
+
+<div class="login-wrap">
+    <form class="login-card" id="loginForm" autocomplete="off">
+        <div class="brand-row">
+            <div class="brand-title">NINJAS KEV<span class="blink"></span></div>
+            <div class="brand-sub">Access Gate · Operator Console</div>
+        </div>
+
+        <div class="field">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" placeholder="ninjas" required autofocus>
+        </div>
+
+        <div class="field">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" placeholder="••••••••" required>
+        </div>
+
+        <button type="submit" class="btn-enter" id="btnSubmit">Enter Console</button>
+        <div class="err-msg" id="errMsg"></div>
+
+        <div class="footer-hint">
+            <span>// NINJAS SEC</span> · KEV · Nuclei · CVE Map
+        </div>
+    </form>
+</div>
+
+<script>
+(function () {
+    const THEME_KEY = 'ninjas_theme';
+    const TOKEN_KEY = 'ninjas_token';
+
+    async function tryExistingSession() {
+        const token = sessionStorage.getItem(TOKEN_KEY);
+        if (!token) return;
+        try {
+            const res = await fetch('/api/me', {
+                headers: { 'Authorization': 'Bearer ' + token },
+            });
+            if (res.ok) {
+                window.location.href = '/index.html';
+            } else {
+                sessionStorage.removeItem(TOKEN_KEY);
+                sessionStorage.removeItem('ninjas_user');
+            }
+        } catch (_) {
+            sessionStorage.removeItem(TOKEN_KEY);
+        }
+    }
+    tryExistingSession();
+
+    const html = document.documentElement;
+    const btnDark  = document.getElementById('btnDark');
+    const btnLight = document.getElementById('btnLight');
+
+    function applyTheme(t) {
+        html.setAttribute('data-theme', t);
+        btnDark.classList.toggle('active', t === 'dark');
+        btnLight.classList.toggle('active', t === 'light');
+        localStorage.setItem(THEME_KEY, t);
+    }
+
+    applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+    btnDark.addEventListener('click', () => applyTheme('dark'));
+    btnLight.addEventListener('click', () => applyTheme('light'));
+
+    const form = document.getElementById('loginForm');
+    const errEl = document.getElementById('errMsg');
+    const btnSubmit = document.getElementById('btnSubmit');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errEl.classList.remove('show');
+        errEl.textContent = '';
+        btnSubmit.disabled = true;
+        btnSubmit.textContent = 'Authenticating…';
+
+        try {
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: document.getElementById('username').value.trim(),
+                    password: document.getElementById('password').value,
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.error || 'Login failed');
+            }
+            sessionStorage.setItem(TOKEN_KEY, data.token);
+            sessionStorage.setItem('ninjas_user', data.user || '');
+            window.location.href = '/index.html';
+        } catch (err) {
+            errEl.textContent = err.message;
+            errEl.classList.add('show');
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = 'Enter Console';
+        }
+    });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1713 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<!--
+    Ninjas KEV Exploitation Console
+    ──────────────────────────────
+    Cyberpunk / CRT-styled dashboard over the CISA KEV catalog.
+    The "Reviewed" column on the far right is the operator workflow:
+    a checkbox flips ✘ → ✔ and the analyst's handle is persisted
+    server-side (POST /api/reviews) so Tier-1 hand-offs to Tier-2
+    survive page reloads and switching machines.
+-->
+
+<head>
+
+<meta charset="UTF-8">
+<title>Ninjas KEV // Exploitation Console</title>
+
+<link rel="stylesheet" href="static/css/bootstrap.min.css">
+<link rel="stylesheet" href="static/css/dataTables.bootstrap5.css">
+
+<style>
+/* ============================================================
+   ░█▀▀░█▀█░█▄█░▀█▀░█▀█  CRT / CYBERPUNK THEME
+   ============================================================
+   The goal of every rule here is "operator looks at this screen
+   for 8 hours and it feels like a movie SOC, not a spreadsheet".
+   Three layers do all the heavy lifting:
+     1. body  → matrix-grade greenscreen + animated gradient
+     2. body::before  → CRT scanlines on top of everything
+     3. body::after   → soft vignette so the corners glow inward
+   Anything else is just colour + tiny neon accents. */
+
+:root, [data-theme="dark"] {
+    --neon-cyan:   #22d3ee;
+    --neon-green:  #4ade80;
+    --neon-pink:   #f472b6;
+    --neon-amber:  #fbbf24;
+    --neon-red:    #ef4444;
+    --bg-deep:     #050913;
+    --bg-panel:    rgba(2, 8, 23, 0.78);
+    --border-glow: rgba(34, 211, 238, 0.28);
+    --grid-line:   rgba(34, 211, 238, 0.06);
+    --text-main:   #cffafe;
+    --text-muted:  #94a3b8;
+    --input-bg:    rgba(2, 6, 23, 0.92);
+    --surface:     rgba(2, 6, 23, 0.85);
+    --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas',
+            'SF Mono', ui-monospace, monospace;
+}
+
+[data-theme="light"] {
+    --neon-cyan:   #0e7490;
+    --neon-green:  #15803d;
+    --neon-pink:   #be185d;
+    --neon-amber:  #b45309;
+    --neon-red:    #b91c1c;
+    --bg-deep:     #f0f9ff;
+    --bg-panel:    rgba(255, 255, 255, 0.94);
+    --border-glow: rgba(14, 116, 144, 0.35);
+    --grid-line:   rgba(14, 116, 144, 0.10);
+    --text-main:   #0f172a;
+    --text-muted:  #475569;
+    --input-bg:    #e2e8f0;
+    --surface:     #f1f5f9;
+}
+
+[data-theme="light"] body {
+    color: var(--text-main);
+    background:
+        radial-gradient(circle at 18% 12%, rgba(14, 116, 144, 0.10), transparent 45%),
+        radial-gradient(circle at 82% 88%, rgba(190, 24, 93, 0.06), transparent 45%),
+        linear-gradient(135deg, #f0f9ff, #e0f2fe 55%, #f8fafc);
+}
+
+[data-theme="light"] body::after {
+    box-shadow: inset 0 0 100px rgba(255,255,255,0.55);
+}
+
+[data-theme="light"] .navbar {
+    background: linear-gradient(90deg, rgba(240,249,255,0.98), rgba(224,242,254,0.98));
+}
+
+[data-theme="light"] .navbar-brand {
+    color: #0e7490;
+    text-shadow: none;
+}
+
+[data-theme="light"] .subtitle,
+[data-theme="light"] .hud,
+[data-theme="light"] .sync-bar .sync-time,
+[data-theme="light"] .kpi .lbl {
+    color: var(--text-muted) !important;
+}
+
+[data-theme="light"] .sync-bar .sync-title,
+[data-theme="light"] .sync-bar .delta b,
+[data-theme="light"] .sync-bar .btn-sync {
+    color: #0e7490;
+}
+
+[data-theme="light"] .sync-bar .delta {
+    color: #15803d;
+    background: rgba(14, 116, 144, 0.08);
+    border-color: rgba(14, 116, 144, 0.25);
+}
+
+[data-theme="light"] .sync-bar .sync-ok { color: #15803d; }
+[data-theme="light"] .sync-bar .sync-fail { color: #b91c1c; }
+[data-theme="light"] .sync-next-val { color: #b45309; }
+
+[data-theme="light"] main.container {
+    box-shadow: 0 0 35px rgba(14,116,144,0.08);
+}
+
+[data-theme="light"] .top-box {
+    background: linear-gradient(180deg, #fff, #f8fafc);
+    border-color: rgba(14,116,144,0.22);
+}
+
+[data-theme="light"] .top-box h6 { color: #0e7490; text-shadow: none; }
+[data-theme="light"] .top-box li .name { color: #1e293b; }
+
+[data-theme="light"] .kpi {
+    background: #f8fafc;
+    border-color: rgba(14,116,144,0.22);
+}
+
+[data-theme="light"] .kpi .val { text-shadow: none; }
+
+[data-theme="light"] table.dataTable {
+    background: #fff !important;
+    color: #1e293b !important;
+}
+
+[data-theme="light"] table.dataTable thead {
+    background: #e2e8f0 !important;
+}
+
+[data-theme="light"] table.dataTable thead th {
+    color: #0e7490 !important;
+    border-color: rgba(14,116,144,0.25) !important;
+}
+
+[data-theme="light"] table.dataTable tbody tr {
+    background: #fff !important;
+}
+
+[data-theme="light"] table.dataTable tbody tr:nth-child(even) {
+    background: #f8fafc !important;
+}
+
+[data-theme="light"] .dataTables_wrapper .dataTables_length,
+[data-theme="light"] .dataTables_wrapper .dataTables_filter,
+[data-theme="light"] .dataTables_wrapper .dataTables_info,
+[data-theme="light"] .dataTables_wrapper .dataTables_paginate {
+    color: var(--text-muted) !important;
+}
+
+[data-theme="light"] .theme-toggle button.active {
+    color: #fff;
+}
+
+[data-theme="light"] .sync-bar {
+    background: linear-gradient(90deg, rgba(240,249,255,0.98), rgba(224,242,254,0.96));
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+body {
+    margin: 0;
+    font-family: var(--mono);
+    color: var(--text-main);
+    background:
+        radial-gradient(circle at 18% 12%, rgba(34, 211, 238, 0.16), transparent 45%),
+        radial-gradient(circle at 82% 88%, rgba(244, 114, 182, 0.14), transparent 45%),
+        linear-gradient(135deg, #02030a, #050913 55%, #0a0612);
+    background-attachment: fixed;
+    background-size: cover;
+    overflow-x: hidden;
+}
+
+/* Subtle alphanumeric grid — gives the page that "terminal printed on
+   graph paper" feel without being noisy enough to hurt readability. */
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+        linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 100% 32px,
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 32px 100%,
+        repeating-linear-gradient(to bottom,
+            rgba(0, 0, 0, 0.18) 0,
+            rgba(0, 0, 0, 0.18) 2px,
+            transparent 2px,
+            transparent 4px);
+    z-index: 0;
+}
+/* Glow vignette so the eye is pulled toward the centre of the data. */
+body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    box-shadow: inset 0 0 220px rgba(0, 0, 0, 0.75),
+                inset 0 0 90px rgba(34, 211, 238, 0.05);
+    z-index: 1;
+}
+
+/* Real content sits above the two ::before/::after decorative layers. */
+nav.navbar, .sync-bar, main.container, footer.footer { position: relative; z-index: 2; }
+
+/* ============================================================
+   SYNC STATUS BAR
+   ============================================================ */
+
+.sync-bar {
+    background: linear-gradient(90deg, rgba(2,6,23,0.94), rgba(10,6,18,0.92));
+    border-bottom: 1px solid var(--border-glow);
+    padding: 10px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    backdrop-filter: blur(6px);
+}
+.sync-bar .sync-title {
+    color: var(--neon-cyan);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+}
+.sync-bar .sync-time { color: var(--text-muted); }
+.sync-bar .sync-next { color: var(--text-muted); }
+.sync-bar .sync-next-val { color: var(--neon-amber); font-weight: 700; }
+.sync-bar .sync-deltas {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.sync-bar .delta {
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid rgba(34,211,238,0.25);
+    background: rgba(34,211,238,0.06);
+    color: var(--neon-green);
+    transition: all 0.25s ease;
+}
+.sync-bar .delta:hover {
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 12px rgba(34,211,238,0.2);
+    transform: translateY(-1px);
+}
+.sync-bar .delta b { color: var(--neon-cyan); }
+.sync-bar .sync-ok  { color: var(--neon-green); }
+.sync-bar .sync-fail { color: var(--neon-red); }
+.sync-bar .btn-sync {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 6px 12px;
+    border: 1px solid var(--border-glow);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--neon-cyan);
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+.sync-bar .btn-sync:hover {
+    background: rgba(34,211,238,0.12);
+    box-shadow: 0 0 14px rgba(34,211,238,0.25);
+    transform: translateY(-1px);
+}
+
+.nav-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.theme-toggle {
+    display: flex;
+    border: 1px solid var(--border-glow);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.theme-toggle button {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 6px 10px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.theme-toggle button:hover { color: var(--neon-cyan); }
+.theme-toggle button.active {
+    background: var(--neon-cyan);
+    color: #020617;
+}
+.btn-logout {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 6px 12px;
+    border: 1px solid rgba(244,114,182,0.35);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--neon-pink);
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+.btn-logout:hover {
+    background: rgba(244,114,182,0.12);
+    box-shadow: 0 0 12px rgba(244,114,182,0.25);
+}
+
+/* ============================================================
+   NAVBAR / HUD
+   ============================================================ */
+
+.navbar {
+    background: linear-gradient(90deg,
+                  rgba(2, 6, 23, 0.92),
+                  rgba(10, 6, 18, 0.92));
+    border-bottom: 1px solid var(--border-glow);
+    padding: 14px 22px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 18px;
+    backdrop-filter: blur(6px);
+}
+.brand-block { display: flex; align-items: center; justify-content: center; flex: 1; text-align: center; }
+.navbar-brand {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--neon-cyan);
+    text-shadow: 0 0 6px rgba(34, 211, 238, 0.65),
+                 0 0 18px rgba(34, 211, 238, 0.35);
+    letter-spacing: 0.04em;
+    line-height: 1.1;
+}
+.subtitle {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-top: 2px;
+}
+.brand-block .blink::after {
+    content: "▌";
+    margin-left: 2px;
+    color: var(--neon-green);
+    animation: blink 1s steps(1, end) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+.hud {
+    display: flex; align-items: center; gap: 18px;
+    font-size: 11px; color: var(--text-muted);
+    letter-spacing: 0.12em; text-transform: uppercase;
+}
+.hud .led {
+    display: inline-flex; align-items: center; gap: 6px;
+}
+.hud .led::before {
+    content: "";
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--neon-green);
+    box-shadow: 0 0 8px var(--neon-green), 0 0 14px var(--neon-green);
+    animation: ledBlink 1.6s ease-in-out infinite;
+}
+.hud .led.led-cyan::before  { background: var(--neon-cyan);  box-shadow: 0 0 8px var(--neon-cyan); }
+.hud .led.led-amber::before { background: var(--neon-amber); box-shadow: 0 0 8px var(--neon-amber); }
+@keyframes ledBlink { 50% { opacity: 0.35; } }
+
+/* ============================================================
+   CONTAINER + TOP BOXES (vendors / products / status)
+   ============================================================ */
+
+main.container {
+    direction: ltr;
+    margin-top: 22px;
+    background: var(--bg-panel);
+    padding: 22px;
+    border-radius: 10px;
+    border: 1px solid var(--border-glow);
+    box-shadow: 0 0 35px rgba(34, 211, 238, 0.06),
+                inset 0 0 60px rgba(2, 6, 23, 0.6);
+    backdrop-filter: blur(6px);
+}
+
+.top-box {
+    background:
+      linear-gradient(180deg, rgba(8, 14, 32, 0.92), rgba(2, 6, 23, 0.92));
+    border: 1px solid rgba(125, 211, 252, 0.18);
+    border-left: 3px solid var(--neon-cyan);
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 18px;
+    position: relative;
+    overflow: hidden;
+}
+.top-box::before {
+    /* tiny corner-marker for that "you are looking at a terminal" feel */
+    content: "// "attr(data-label);
+    position: absolute;
+    top: 6px; right: 10px;
+    font-size: 9px; letter-spacing: 0.18em;
+    color: #475569;
+}
+.top-box h6 {
+    color: var(--neon-cyan);
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin: 0 0 10px;
+    text-shadow: 0 0 6px rgba(34, 211, 238, 0.45);
+}
+/* (h6 icons are pure unicode glyphs now — no FA dependency) */
+.top-box ul {
+    padding: 0; margin: 0; list-style: none;
+}
+.top-box li {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 4px 0;
+    border-bottom: 1px dashed rgba(148, 163, 184, 0.10);
+    font-size: 13px;
+}
+.top-box li:last-child { border-bottom: 0; }
+.top-box li .name { color: #e2e8f0; }
+.top-box li .pills { display: inline-flex; gap: 6px; }
+.top-box .pill {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 1px 8px; border-radius: 4px;
+    letter-spacing: 0.08em;
+}
+.top-box .pill.count {
+    background: rgba(34, 211, 238, 0.15);
+    color: var(--neon-cyan);
+    border: 1px solid rgba(34, 211, 238, 0.30);
+}
+.top-box .pill.new {
+    background: rgba(239, 68, 68, 0.18);
+    color: var(--neon-red);
+    border: 1px solid rgba(239, 68, 68, 0.55);
+    text-shadow: 0 0 5px rgba(239, 68, 68, 0.6);
+    animation: newPulse 1.4s ease-in-out infinite;
+}
+@keyframes newPulse { 50% { transform: scale(1.06); opacity: 0.85; } }
+
+.kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+.kpi {
+    background: rgba(2, 6, 23, 0.85);
+    border: 1px solid rgba(125, 211, 252, 0.18);
+    border-radius: 6px;
+    padding: 10px 14px;
+}
+.kpi .lbl {
+    color: #64748b; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.16em;
+}
+.kpi .val {
+    color: var(--neon-green);
+    font-size: 24px; font-weight: 700;
+    text-shadow: 0 0 6px rgba(74, 222, 128, 0.55);
+    font-family: var(--mono);
+}
+.kpi .val.cyan  { color: var(--neon-cyan);  text-shadow: 0 0 6px rgba(34,211,238,.55); }
+.kpi .val.amber { color: var(--neon-amber); text-shadow: 0 0 6px rgba(251,191,36,.55); }
+.kpi .val.pink  { color: var(--neon-pink);  text-shadow: 0 0 6px rgba(244,114,182,.55); }
+
+/* ============================================================
+   DATATABLE
+   ============================================================ */
+
+table.dataTable {
+    background: rgba(2, 6, 23, 0.65) !important;
+    color: #e2e8f0 !important;
+    font-family: var(--mono);
+    font-size: 12px;
+    border-collapse: separate !important;
+    border-spacing: 0;
+}
+table.dataTable thead {
+    background: rgba(7, 12, 28, 0.95) !important;
+}
+table.dataTable thead th {
+    border-color: rgba(34, 211, 238, 0.22) !important;
+    text-transform: uppercase;
+    letter-spacing: 0.10em;
+    font-size: 11px;
+    padding: 10px 8px;
+}
+table.dataTable tbody td {
+    color: #e2e8f0 !important;
+    border-color: rgba(148, 163, 184, 0.08) !important;
+    padding: 8px;
+}
+table.dataTable tbody tr {
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+table.dataTable tbody tr:hover {
+    background: rgba(34, 211, 238, 0.06) !important;
+    box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.28);
+}
+table.dataTable tbody tr.kev-reviewed {
+    background: rgba(74, 222, 128, 0.05) !important;
+}
+table.dataTable tbody tr.kev-reviewed td:first-child {
+    box-shadow: inset 3px 0 0 0 var(--neon-green);
+}
+
+/* Column accent colours — picked from the neon palette so each
+   column still pops at a glance without overwhelming the eye. */
+#kevTable thead tr:first-child th:nth-child(1){ color: var(--neon-cyan);  }
+#kevTable thead tr:first-child th:nth-child(2){ color: #a5f3fc;          }
+#kevTable thead tr:first-child th:nth-child(3){ color: var(--neon-pink); }
+#kevTable thead tr:first-child th:nth-child(4){ color: var(--neon-amber); }
+#kevTable thead tr:first-child th:nth-child(5){ color: var(--neon-green); }
+#kevTable thead tr:first-child th:nth-child(6){ color: #e9d5ff;          }
+#kevTable thead tr:first-child th:nth-child(7){ color: var(--neon-green); }
+#kevTable thead tr:first-child th:nth-child(8){ color: #c4b5fd;          }
+#kevTable thead tr:first-child th:nth-child(9){ color: #fbbf24;          }
+
+.link-cell { font-size: 9px; line-height: 1.45; max-width: 240px; word-break: break-all; }
+.link-chip {
+    display: inline-block;
+    margin: 2px 3px 2px 0;
+    padding: 2px 5px;
+    border-radius: 3px;
+    border: 1px solid rgba(103, 232, 249, 0.35);
+    color: #67e8f9;
+    text-decoration: none;
+    background: rgba(34, 211, 238, 0.08);
+}
+.link-chip:hover { color: #fff; border-color: #22d3ee; }
+.link-chip-nuclei { border-color: rgba(74, 222, 128, 0.45); color: #86efac; background: rgba(74, 222, 128, 0.1); }
+.link-chip-poc { border-color: rgba(251, 191, 36, 0.5); color: #fcd34d; background: rgba(251, 191, 36, 0.1); }
+.link-chip-other { border-color: rgba(148, 163, 184, 0.4); color: #cbd5e1; }
+.link-none { color: #64748b; font-size: 10px; }
+
+.tag-nuclei-yes {
+    color: #a7f3d0;
+    background: rgba(74, 222, 128, 0.12);
+    border: 1px solid rgba(74, 222, 128, 0.45);
+}
+.tag-nuclei-no {
+    color: #fda4af;
+    background: rgba(239, 68, 68, 0.10);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+}
+.nuclei-path {
+    display: block;
+    font-size: 9px;
+    color: #67e8f9;
+    margin-top: 4px;
+    word-break: break-all;
+    max-width: 220px;
+}
+.nuclei-path a { color: #67e8f9; text-decoration: none; }
+.nuclei-path a:hover { text-decoration: underline; color: #fff; }
+.em-report-link {
+    font-size: 11px;
+    color: var(--neon-cyan);
+    letter-spacing: 0.08em;
+    text-decoration: none;
+    margin-left: 12px;
+}
+.em-report-link:hover { color: #fff; text-shadow: 0 0 8px var(--neon-cyan); }
+
+.nuclei-notice {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    margin: 0 0 18px;
+    padding: 14px 18px;
+    background: rgba(34, 211, 238, 0.08);
+    border: 1px solid rgba(34, 211, 238, 0.35);
+    border-left: 4px solid var(--neon-cyan);
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-main);
+    letter-spacing: 0.04em;
+    box-shadow: 0 0 20px rgba(34, 211, 238, 0.08);
+}
+
+.nuclei-notice .nuclei-label {
+    color: var(--neon-cyan);
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+}
+
+.nuclei-notice .nuclei-path {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--neon-amber);
+    background: rgba(2, 6, 23, 0.55);
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    word-break: break-all;
+}
+
+.nuclei-notice .nuclei-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    margin-left: auto;
+}
+
+.nuclei-notice .nuclei-link {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--neon-cyan);
+    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 6px 12px;
+    border: 1px solid rgba(34, 211, 238, 0.45);
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.nuclei-notice .nuclei-link:hover {
+    color: #020617;
+    background: var(--neon-cyan);
+    box-shadow: 0 0 16px rgba(34, 211, 238, 0.45);
+}
+
+[data-theme="light"] .nuclei-notice {
+    background: rgba(14, 116, 144, 0.08);
+    border-color: rgba(14, 116, 144, 0.35);
+}
+
+[data-theme="light"] .nuclei-notice .nuclei-label { color: #0e7490; }
+[data-theme="light"] .nuclei-notice .nuclei-path {
+    color: #b45309;
+    background: #f1f5f9;
+    border-color: rgba(180, 83, 9, 0.35);
+}
+[data-theme="light"] .nuclei-notice .nuclei-link { color: #0e7490; }
+[data-theme="light"] .nuclei-notice .nuclei-link:hover {
+    color: #fff;
+    background: #0e7490;
+}
+
+thead input {
+    width: 100%;
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 6px;
+    background: var(--input-bg);
+    color: var(--text-main);
+    border: 1px solid var(--border-glow);
+    border-radius: 3px;
+}
+thead input:focus {
+    outline: none;
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 8px rgba(34, 211, 238, 0.45);
+}
+thead input::placeholder { color: #475569; }
+
+/* DataTables chrome */
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_filter,
+.dataTables_wrapper .dataTables_info,
+.dataTables_wrapper .dataTables_paginate {
+    color: #94a3b8 !important;
+    font-family: var(--mono);
+    font-size: 12px;
+}
+.dataTables_wrapper .dataTables_paginate .paginate_button {
+    color: var(--neon-cyan) !important;
+    border-radius: 4px !important;
+    border-color: rgba(34, 211, 238, 0.25) !important;
+}
+.dataTables_wrapper .dataTables_paginate .paginate_button.current {
+    background: rgba(34, 211, 238, 0.18) !important;
+    color: #fff !important;
+    border-color: var(--neon-cyan) !important;
+}
+.dataTables_wrapper .dataTables_filter input,
+.dataTables_wrapper .dataTables_length select {
+    background: var(--input-bg) !important;
+    color: var(--text-main) !important;
+    border: 1px solid var(--border-glow) !important;
+    border-radius: 4px;
+    font-family: var(--mono);
+    padding: 5px 10px;
+}
+
+.dataTables_wrapper .dataTables_filter input:focus,
+.dataTables_wrapper .dataTables_length select:focus {
+    outline: none;
+    border-color: var(--neon-cyan) !important;
+    box-shadow: 0 0 0 2px rgba(34,211,238,0.15);
+}
+
+.date-filter-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 14px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border-glow);
+    border-radius: 6px;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.06em;
+}
+
+.date-filter-bar label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+}
+
+.date-filter-bar input[type="date"] {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 5px 10px;
+    background: var(--input-bg);
+    color: var(--text-main);
+    border: 1px solid var(--border-glow);
+    border-radius: 4px;
+}
+
+.date-filter-bar input[type="date"]:focus {
+    outline: none;
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 0 2px rgba(34,211,238,0.15);
+}
+
+.date-filter-bar .btn-date-clear {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 5px 12px;
+    border: 1px solid var(--border-glow);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--neon-cyan);
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.date-filter-bar .btn-date-clear:hover {
+    background: rgba(34,211,238,0.1);
+}
+
+/* ============================================================
+   BADGES
+   ============================================================ */
+
+.tag {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    line-height: 1.5;
+}
+.tag-cve {
+    color: var(--neon-cyan);
+    background: rgba(34, 211, 238, 0.10);
+    border: 1px solid rgba(34, 211, 238, 0.45);
+    text-shadow: 0 0 4px rgba(34, 211, 238, 0.55);
+}
+.tag-new {
+    color: #fff;
+    background: rgba(251, 191, 36, 0.85);
+    border: 1px solid var(--neon-amber);
+    text-shadow: 0 0 5px rgba(251, 191, 36, 0.75);
+    box-shadow: 0 0 8px rgba(251, 191, 36, 0.35);
+    animation: newPulse 1.4s ease-in-out infinite;
+}
+.tag-ransom-yes {
+    color: #fff;
+    background: rgba(239, 68, 68, 0.85);
+    border: 1px solid var(--neon-red);
+    text-shadow: 0 0 5px rgba(239, 68, 68, 0.7);
+}
+.tag-ransom-no {
+    color: #a7f3d0;
+    background: rgba(74, 222, 128, 0.10);
+    border: 1px solid rgba(74, 222, 128, 0.45);
+}
+
+/* ============================================================
+   REVIEWED column (the new operator workflow)
+   ============================================================ */
+
+.rev-cell {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 11px;
+}
+.rev-cell.rev-cell-simple {
+    justify-content: center;
+    min-width: 36px;
+}
+.rev-chk {
+    width: 18px; height: 18px;
+    appearance: none;
+    border: 1.5px solid var(--neon-cyan);
+    border-radius: 3px;
+    background: rgba(2, 6, 23, 0.85);
+    position: relative;
+    cursor: pointer;
+    transition: all .15s ease;
+    box-shadow: inset 0 0 6px rgba(34, 211, 238, 0.10);
+}
+.rev-chk:hover {
+    box-shadow: 0 0 8px rgba(34, 211, 238, 0.55),
+                inset 0 0 6px rgba(34, 211, 238, 0.25);
+}
+.rev-chk:checked {
+    background: rgba(74, 222, 128, 0.85);
+    border-color: var(--neon-green);
+    box-shadow: 0 0 10px rgba(74, 222, 128, 0.6),
+                inset 0 0 6px rgba(255, 255, 255, 0.25);
+}
+.rev-chk:checked::after {
+    content: "✓";
+    position: absolute;
+    inset: 0;
+    display: grid; place-items: center;
+    color: #042f1a;
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1;
+}
+.rev-input {
+    flex: 1;
+    min-width: 80px;
+    max-width: 130px;
+    font-family: var(--mono);
+    font-size: 11px;
+    background: rgba(2, 6, 23, 0.85);
+    color: var(--neon-green);
+    border: 1px solid rgba(74, 222, 128, 0.25);
+    border-radius: 3px;
+    padding: 3px 6px;
+}
+.rev-input:focus {
+    outline: none;
+    border-color: var(--neon-green);
+    box-shadow: 0 0 8px rgba(74, 222, 128, 0.45);
+}
+.rev-input:disabled {
+    color: #475569;
+    border-color: rgba(148, 163, 184, 0.15);
+    cursor: not-allowed;
+}
+.rev-meta {
+    color: #64748b; font-size: 10px;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    cursor: help;
+}
+.rev-spin {
+    color: var(--neon-amber);
+    animation: spinNeon 1s linear infinite;
+}
+@keyframes spinNeon { to { transform: rotate(360deg); } }
+
+/* ============================================================
+   "VIEW" BUTTON + MODAL
+   ============================================================ */
+
+.btn-view {
+    background: transparent;
+    border: 1px solid var(--neon-cyan);
+    color: var(--neon-cyan);
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.10em;
+    padding: 3px 10px;
+    text-transform: uppercase;
+    transition: all 0.15s ease;
+}
+.btn-view:hover {
+    background: rgba(34, 211, 238, 0.15);
+    box-shadow: 0 0 12px rgba(34, 211, 238, 0.55);
+    color: #fff;
+}
+/* (view button uses a unicode ▶ — no FA dependency) */
+
+.modal-content {
+    background: linear-gradient(180deg,
+                rgba(2, 6, 23, 0.96),
+                rgba(8, 14, 30, 0.96));
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--neon-cyan);
+    box-shadow: 0 0 35px rgba(34, 211, 238, 0.25);
+    border-radius: 8px;
+    color: #e2e8f0;
+    font-family: var(--mono);
+}
+.modal-header {
+    border-bottom: 1px solid rgba(34, 211, 238, 0.20);
+}
+.modal-title {
+    color: var(--neon-cyan);
+    text-shadow: 0 0 5px rgba(34, 211, 238, 0.6);
+    letter-spacing: 0.05em;
+}
+.modal-body p {
+    margin: 4px 0;
+    font-size: 12px;
+    line-height: 1.5;
+}
+.modal-body p b {
+    color: var(--neon-amber);
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.10em;
+    margin-right: 6px;
+}
+
+/* ============================================================
+   FOOTER + TOAST
+   ============================================================ */
+
+.footer {
+    background: rgba(2, 6, 23, 0.78);
+    color: #475569;
+    padding: 12px;
+    text-align: center;
+    font-size: 11px;
+    font-family: var(--mono);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    border-top: 1px solid rgba(34, 211, 238, 0.15);
+    margin-top: 25px;
+}
+.footer .accent { color: var(--neon-cyan); }
+
+.toast-mini {
+    position: fixed;
+    right: 18px; bottom: 18px;
+    background: rgba(2, 6, 23, 0.92);
+    border: 1px solid var(--neon-cyan);
+    color: var(--neon-cyan);
+    padding: 10px 14px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    box-shadow: 0 0 14px rgba(34, 211, 238, 0.45);
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity .25s ease, transform .25s ease;
+    pointer-events: none;
+}
+.toast-mini.show { opacity: 1; transform: translateY(0); }
+.toast-mini.err  { color: var(--neon-red); border-color: var(--neon-red);
+                   box-shadow: 0 0 14px rgba(239, 68, 68, 0.45); }
+.toast-mini.ok   { color: var(--neon-green); border-color: var(--neon-green);
+                   box-shadow: 0 0 14px rgba(74, 222, 128, 0.45); }
+
+/* iframe-style scrollbar in webkit so the table region matches the
+   rest of the dashboard's hacker vibe. */
+.dataTables_scrollBody::-webkit-scrollbar,
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb {
+    background: rgba(34, 211, 238, 0.35);
+    border-radius: 4px;
+}
+*::-webkit-scrollbar-track {
+    background: rgba(2, 6, 23, 0.6);
+}
+</style>
+
+</head>
+
+<body>
+
+<nav class="navbar">
+    <div class="brand-block">
+        <div>
+            <div class="navbar-brand">NINJAS KEV<span class="blink"></span></div>
+            <div class="subtitle">Known Exploited Vulnerabilities · Operator Console</div>
+        </div>
+    </div>
+    <div class="hud">
+        <span class="led" id="hudFeed">FEED</span>
+        <span class="led led-amber" id="hudCount">CVE&nbsp;<b id="hudCveTotal">—</b></span>
+        <span class="led led-cyan" id="hudReviewed">REVIEWED&nbsp;<b id="hudRevTotal">—</b></span>
+    </div>
+    <div class="nav-controls">
+        <div class="theme-toggle">
+            <button type="button" id="btnDark" class="active">Dark</button>
+            <button type="button" id="btnLight">Light</button>
+        </div>
+        <button type="button" class="btn-logout" id="btnLogout">Logout</button>
+    </div>
+</nav>
+
+<div class="sync-bar" id="syncBar">
+    <div>
+        <span class="sync-title">Daily Sync</span>
+        <span class="sync-time" id="syncTime"> · awaiting first run…</span>
+        <span class="sync-next" id="syncNext"></span>
+    </div>
+    <div class="sync-deltas" id="syncDeltas">
+        <span class="delta">KEV <b id="deltaKev">—</b></span>
+        <span class="delta">Nuclei <b id="deltaNuclei">—</b></span>
+        <span class="delta">Map links <b id="deltaMap">—</b></span>
+    </div>
+    <button type="button" class="btn-sync" id="btnSyncNow">Sync now</button>
+</div>
+
+<main class="container">
+
+    <div class="kpi-strip">
+        <div class="kpi">
+            <div class="lbl">Total CVE</div>
+            <div class="val cyan" id="kpiTotal">—</div>
+        </div>
+        <div class="kpi">
+            <div class="lbl">Added (30d)</div>
+            <div class="val amber" id="kpiNew">—</div>
+        </div>
+        <div class="kpi">
+            <div class="lbl">Ransomware</div>
+            <div class="val pink" id="kpiRansom">—</div>
+        </div>
+        <div class="kpi">
+            <div class="lbl">Reviewed</div>
+            <div class="val" id="kpiReviewed">—</div>
+        </div>
+        <div class="kpi">
+            <div class="lbl">Nuclei template</div>
+            <div class="val cyan" id="kpiNuclei">—</div>
+        </div>
+        <div class="kpi">
+            <div class="lbl">POC link</div>
+            <div class="val amber" id="kpiPoc">—</div>
+        </div>
+    </div>
+    <div class="nuclei-notice">
+        <span class="nuclei-label">Nuclei templates folder</span>
+        <code class="nuclei-path" id="nucleiPathDisplay">…</code>
+        <div class="nuclei-actions">
+            <a class="nuclei-link" href="NUCLEI_TEMPLATES.md" target="_blank">▶ How to add templates</a>
+            <a class="nuclei-link" href="cve-nuclei-report.html" target="_blank">Coverage report</a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="top-box" data-label="vendors">
+                <h6>▣ Top Vendors (by KEV)</h6>
+                <ul id="topVendors"></ul>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="top-box" data-label="products">
+                <h6>◈ Top Products (by KEV)</h6>
+                <ul id="topProducts"></ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="date-filter-bar">
+        <label>From <input type="date" id="dateFrom"></label>
+        <label>To <input type="date" id="dateTo"></label>
+        <button type="button" class="btn-date-clear" id="dateClear">Clear dates</button>
+    </div>
+
+    <table id="kevTable" class="table table-bordered" style="width:100%">
+        <thead>
+            <tr>
+                <th>CVE</th>
+                <th>Vendor</th>
+                <th>Product</th>
+                <th>Date Added</th>
+                <th>Ransomware</th>
+                <th>Details</th>
+                <th>Reviewed</th>
+                <th>Nuclei</th>
+                <th>Links</th>
+            </tr>
+            <tr>
+                <th><input placeholder="grep CVE"></th>
+                <th><input placeholder="grep vendor"></th>
+                <th><input placeholder="grep product"></th>
+                <th><input placeholder="grep date"></th>
+                <th><input placeholder="known?"></th>
+                <th></th>
+                <th><input placeholder="grep reviewer"></th>
+                <th><input placeholder="yes / no"></th>
+                <th><input placeholder="poc / github"></th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+</main>
+
+<div class="footer">
+    <span class="accent">// NINJAS SEC</span>
+    &nbsp;·&nbsp; KEV Exploitation Console
+    &nbsp;·&nbsp; <span id="footUpdated">awaiting feed…</span>
+</div>
+
+<div id="toast" class="toast-mini"></div>
+
+<script src="static/js/jquery.min.js"></script>
+<script src="static/js/bootstrap.bundle.min.js"></script>
+<script src="static/js/dataTables.js"></script>
+<script src="static/js/dataTables.bootstrap5.js"></script>
+
+<script>
+$(document).ready(function () {
+    const TOKEN_KEY = 'ninjas_token';
+    const THEME_KEY = 'ninjas_theme';
+    const AUTH_TOKEN = sessionStorage.getItem(TOKEN_KEY);
+
+    if (!AUTH_TOKEN) {
+        window.location.href = '/';
+        return;
+    }
+
+    function authHeaders(extra) {
+        return Object.assign({ 'Authorization': 'Bearer ' + AUTH_TOKEN }, extra || {});
+    }
+
+    function authFetch(url, opts) {
+        opts = opts || {};
+        opts.headers = authHeaders(opts.headers);
+        return fetch(url, opts).then(r => {
+            if (r.status === 401) {
+                sessionStorage.removeItem(TOKEN_KEY);
+                window.location.href = '/';
+                return Promise.reject(new Error('session expired'));
+            }
+            return r;
+        });
+    }
+
+    // Theme toggle
+    function applyTheme(t) {
+        document.documentElement.setAttribute('data-theme', t);
+        $('#btnDark').toggleClass('active', t === 'dark');
+        $('#btnLight').toggleClass('active', t === 'light');
+        localStorage.setItem(THEME_KEY, t);
+    }
+    applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+    $('#btnDark').on('click', () => applyTheme('dark'));
+    $('#btnLight').on('click', () => applyTheme('light'));
+
+    $('#btnLogout').on('click', () => {
+        sessionStorage.removeItem(TOKEN_KEY);
+        sessionStorage.removeItem('ninjas_user');
+        window.location.href = '/';
+    });
+
+    function fmtSyncTime(iso) {
+        if (!iso) return 'never';
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return iso;
+        return d.toLocaleString('en-GB', { hour12: false });
+    }
+
+    function calcNextSync(hour) {
+        const now = new Date();
+        const next = new Date(now);
+        next.setHours(hour || 3, 0, 0, 0);
+        if (next <= now) next.setDate(next.getDate() + 1);
+        return next.toISOString();
+    }
+
+    function renderSyncStatus(st) {
+        st = st || {};
+        const ok = st.last_run_ok;
+        const at = fmtSyncTime(st.last_run_at);
+        $('#syncTime').html(
+            ' · last update <b class="' + (ok ? 'sync-ok' : 'sync-fail') + '">' + at + '</b>'
+        );
+        const nextAt = st.next_run_at || calcNextSync(st.daily_update_hour || 3);
+        $('#syncNext').html(
+            ' · next update <b class="sync-next-val">' + fmtSyncTime(nextAt) + '</b>'
+        );
+        const c = st.components || {};
+        const kev = c.kev || {};
+        const nuc = c.nuclei_templates || {};
+        const map = c.cve_nuclei_map || {};
+        $('#deltaKev').text('+' + (kev.added || 0) + ' (' + (kev.total || 0) + ' total)');
+        $('#deltaNuclei').text('+' + (nuc.added || 0) + ' (' + (nuc.total || 0) + ' total)');
+        $('#deltaMap').text('+' + (map.added || 0) + ' (' + (map.total || 0) + ' mapped)');
+    }
+
+    let reviewFull = true;
+
+    authFetch('/api/config')
+        .then(r => r.json())
+        .then(cfg => {
+            reviewFull = (cfg.ui_variant || 'git') === 'git';
+            const el = document.getElementById('nucleiPathDisplay');
+            if (el && cfg.nuclei_templates_resolved) {
+                el.textContent = cfg.nuclei_templates_resolved;
+            }
+            if (!reviewFull) {
+                $('#kevTable thead tr:eq(1) th').eq(6).empty();
+            }
+            return loadDashboard();
+        })
+        .catch(() => loadDashboard());
+
+    authFetch('/api/update-status')
+        .then(r => r.json())
+        .then(renderSyncStatus)
+        .catch(() => {});
+
+    $('#btnSyncNow').on('click', function () {
+        const btn = $(this);
+        btn.prop('disabled', true).text('Syncing…');
+        authFetch('/api/sync/trigger', { method: 'POST' })
+            .then(r => r.json())
+            .then(() => {
+                toast('Sync started — refresh in a minute', 'ok');
+                setTimeout(() => {
+                    authFetch('/api/update-status')
+                        .then(r => r.json())
+                        .then(renderSyncStatus);
+                }, 8000);
+            })
+            .catch(err => toast('Sync trigger failed: ' + err.message, 'err'))
+            .finally(() => btn.prop('disabled', false).text('Sync now'));
+    });
+
+    setInterval(() => {
+        authFetch('/api/update-status')
+            .then(r => r.json())
+            .then(renderSyncStatus)
+            .catch(() => {});
+    }, 120000);
+
+    // ── tiny utility -----------------------------------------------------
+    let _toastTimer = null;
+    function toast(msg, kind) {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.className = 'toast-mini show ' + (kind || '');
+        clearTimeout(_toastTimer);
+        _toastTimer = setTimeout(() => {
+            el.className = 'toast-mini ' + (kind || '');
+        }, 2200);
+    }
+
+    function fmtDate(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return iso;
+        return d.toLocaleString('en-GB', { hour12: false });
+    }
+
+    function esc(s) {
+        return String(s || '').replace(/[&<>"']/g, c => ({
+            '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+        })[c]);
+    }
+
+    // Reviews cache, keyed on the CVE id. We hydrate it from the server
+    // up-front so the table can render the correct checkbox state on the
+    // first paint instead of flashing all-unchecked then all-checked.
+    const reviews = {};
+    const nucleiByCve = {};
+
+    function loadDashboard() {
+    return Promise.all([
+        fetch("KEV.json").then(r => r.json()),
+        authFetch("/api/reviews").then(r => r.ok ? r.json() : {}).catch(() => ({})),
+        fetch("cve-nuclei-map.json").then(r => r.ok ? r.json() : {}).catch(() => ({})),
+    ]).then(([data, revMap, nucleiMap]) => {
+        Object.assign(reviews, revMap || {});
+        (nucleiMap.rows || []).forEach(row => {
+            if (row.cveID) nucleiByCve[row.cveID.toUpperCase()] = row;
+        });
+
+        // ── 30-day "new" window helpers ----------------------------------
+        const today  = new Date();
+        const last30 = new Date(); last30.setDate(today.getDate() - 30);
+        function isNew(dateStr) { return new Date(dateStr) >= last30; }
+
+        // ── KPI strip ----------------------------------------------------
+        const vulns = data.vulnerabilities || [];
+        const newCount    = vulns.filter(v => isNew(v.dateAdded)).length;
+        const ransomCount = vulns.filter(v => v.knownRansomwareCampaignUse === 'Known').length;
+        $('#kpiTotal').text(vulns.length.toLocaleString());
+        $('#kpiNew').text(newCount.toLocaleString());
+        $('#kpiRansom').text(ransomCount.toLocaleString());
+        $('#hudCveTotal').text(vulns.length.toLocaleString());
+        refreshReviewedKpi();
+        const withNuclei = Object.values(nucleiByCve).filter(r => r.has_nuclei_template).length;
+        const withPoc = Object.values(nucleiByCve).filter(r => r.links && r.links.has_poc).length;
+        $('#kpiNuclei').text(
+            withNuclei.toLocaleString() + ' / ' + vulns.length.toLocaleString()
+        );
+        $('#kpiPoc').text(withPoc.toLocaleString());
+
+        $('#footUpdated').text('catalog v' + (data.catalogVersion || 'unknown') +
+                               ' · ' + vulns.length + ' CVEs · loaded ' + fmtDate(new Date()));
+
+        // ── Top vendors / products --------------------------------------
+        const vendorCounts = {}, productCounts = {};
+        vulns.forEach(v => {
+            vendorCounts[v.vendorProject] = (vendorCounts[v.vendorProject] || 0) + 1;
+            productCounts[v.product]      = (productCounts[v.product] || 0) + 1;
+        });
+        function topN(obj, n) {
+            return Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, n);
+        }
+        topN(vendorCounts, 5).forEach(([name, count]) => {
+            const newest = vulns.some(v => v.vendorProject === name && isNew(v.dateAdded));
+            $('#topVendors').append(`
+                <li>
+                    <span class="name">${esc(name)}</span>
+                    <span class="pills">
+                        <span class="pill count">${count}</span>
+                        ${newest ? '<span class="pill new">NEW</span>' : ''}
+                    </span>
+                </li>`);
+        });
+        topN(productCounts, 5).forEach(([name, count]) => {
+            const newest = vulns.some(v => v.product === name && isNew(v.dateAdded));
+            $('#topProducts').append(`
+                <li>
+                    <span class="name">${esc(name)}</span>
+                    <span class="pills">
+                        <span class="pill count">${count}</span>
+                        ${newest ? '<span class="pill new">NEW</span>' : ''}
+                    </span>
+                </li>`);
+        });
+
+        // ── Build DataTable rows ----------------------------------------
+        const rows = vulns.map((v, i) => {
+            const newBadge = isNew(v.dateAdded)
+                ? ' <span class="tag tag-new">NEW</span>'
+                : '';
+            const ransom = v.knownRansomwareCampaignUse === 'Known'
+                ? '<span class="tag tag-ransom-yes">KNOWN</span>'
+                : '<span class="tag tag-ransom-no">No</span>';
+            return [
+                `<span class="tag tag-cve">${esc(v.cveID)}</span>`,
+                esc(v.vendorProject || '—'),
+                esc(v.product || '—'),
+                esc(v.dateAdded || '—') + newBadge,
+                ransom,
+                `<button class="btn-view viewDetails" data-index="${i}">
+                    ▶ view
+                 </button>`,
+                renderReviewCell(v.cveID),
+                renderNucleiCell(v.cveID),
+                renderLinksCell(v.cveID),
+            ];
+        });
+
+        const table = $('#kevTable').DataTable({
+            data:       rows,
+            pageLength: 50,
+            order:      [[3, 'desc']],
+            columnDefs: [{ orderable: false, targets: [5, 6, 7, 8] }],
+            drawCallback: applyReviewedRowStyle,
+        });
+
+        $.fn.dataTable.ext.search.push(function (settings, _data, dataIndex) {
+            if (settings.nTable.id !== 'kevTable') return true;
+            const from = $('#dateFrom').val();
+            const to = $('#dateTo').val();
+            if (!from && !to) return true;
+            const raw = (vulns[dataIndex] && vulns[dataIndex].dateAdded) || '';
+            const d = raw.slice(0, 10);
+            if (!d) return true;
+            if (from && d < from) return false;
+            if (to && d > to) return false;
+            return true;
+        });
+
+        $('#dateFrom, #dateTo').on('change', () => table.draw());
+        $('#dateClear').on('click', () => {
+            $('#dateFrom, #dateTo').val('');
+            table.draw();
+        });
+
+        // Per-column search wiring (rule unchanged from the legacy UI,
+        // just pointed at the new placeholder text).
+        $('#kevTable thead tr:eq(1) th').each(function (i) {
+            $('input', this).on('keyup change', function () {
+                table.column(i).search(this.value).draw();
+            });
+        });
+
+        // ── Detail modal ------------------------------------------------
+        $('#kevTable tbody').on('click', '.viewDetails', function () {
+            const vuln = vulns[$(this).data("index")];
+            let html = renderLinksDetail(vuln.cveID);
+            for (const k in vuln) {
+                html += `<p><b>${esc(k)}</b> ${esc(vuln[k])}</p>`;
+            }
+            const modal = `
+                <div class="modal fade" id="kevModal">
+                    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">${esc(vuln.cveID)}</h5>
+                                <button class="btn-close btn-close-white"
+                                        data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">${html}</div>
+                        </div>
+                    </div>
+                </div>`;
+            $('#kevModal').remove();
+            $('body').append(modal);
+            new bootstrap.Modal(document.getElementById('kevModal')).show();
+        });
+
+        // ── Review checkbox / reviewer input handlers ------------------
+        // Delegated so it survives DataTables re-renders on every
+        // pagination / sort. Both events save: checkbox toggles the
+        // reviewed flag, the input commits the analyst handle on blur
+        // / Enter so we don't POST after every keystroke.
+        $('#kevTable tbody').on('change', '.rev-chk', function () {
+            const cve  = this.dataset.cve;
+            if (!reviewFull) {
+                const user = sessionStorage.getItem('ninjas_user') || 'operator';
+                postReview(cve, this.checked, user, '', this);
+                return;
+            }
+            const row  = $(this).closest('tr');
+            const inp  = row.find('.rev-input')[0];
+            const name = (inp && inp.value || '').trim();
+            const note = (inp && inp.dataset.note || '');
+            if (this.checked && !name) {
+                // Force the analyst to identify themselves — refuse the
+                // toggle otherwise so we never end up with anonymous ticks.
+                inp.disabled = false;
+                inp.focus();
+                toast('Type your handle then press Enter', 'err');
+                this.checked = false;
+                return;
+            }
+            postReview(cve, this.checked, name, note, this);
+        });
+
+        $('#kevTable tbody').on('keydown', '.rev-input', function (e) {
+            if (!reviewFull) return;
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            const cve  = this.dataset.cve;
+            const name = (this.value || '').trim();
+            const chk  = $(this).closest('tr').find('.rev-chk')[0];
+            if (!name) { toast('Reviewer handle is empty', 'err'); return; }
+            if (chk) chk.checked = true;
+            postReview(cve, true, name, this.dataset.note || '', chk);
+        });
+
+        $('#kevTable tbody').on('blur', '.rev-input', function () {
+            if (!reviewFull) return;
+            // If the operator typed a name AND the row is already
+            // marked reviewed, persist the rename without requiring
+            // them to uncheck-and-recheck.
+            const cve  = this.dataset.cve;
+            const name = (this.value || '').trim();
+            const chk  = $(this).closest('tr').find('.rev-chk')[0];
+            if (chk && chk.checked && name && reviews[cve] &&
+                reviews[cve].reviewer !== name) {
+                postReview(cve, true, name, this.dataset.note || '', chk);
+            }
+        });
+    })
+    .catch(err => {
+        console.error(err);
+        toast('Cannot load KEV.json or /api/reviews', 'err');
+    });
+    }
+
+    function ghShort(url) {
+        if (!url) return '';
+        const u = String(url);
+        if (u.includes('github.com/')) {
+            return u.split('github.com/')[1].replace(/^\/+/, '').slice(0, 42);
+        }
+        try {
+            return new URL(u).hostname + new URL(u).pathname.slice(0, 28);
+        } catch (e) {
+            return u.slice(0, 40);
+        }
+    }
+
+    function renderLinksCell(cve) {
+        const row = nucleiByCve[(cve || '').toUpperCase()];
+        const lk = (row && row.links) || {};
+        const chips = [];
+
+        (lk.nuclei_github || []).slice(0, 1).forEach(u => {
+            chips.push(
+                `<a class="link-chip link-chip-nuclei" href="${esc(u)}" target="_blank" rel="noopener" title="${esc(u)}">◆ nuclei</a>`
+            );
+        });
+        (lk.poc || []).slice(0, 2).forEach(u => {
+            chips.push(
+                `<a class="link-chip link-chip-poc" href="${esc(u)}" target="_blank" rel="noopener" title="${esc(u)}">⚡ poc ${esc(ghShort(u))}</a>`
+            );
+        });
+        const pocSet = new Set(lk.poc || []);
+        (lk.github || []).filter(u => !pocSet.has(u)).slice(0, 1).forEach(u => {
+            chips.push(
+                `<a class="link-chip" href="${esc(u)}" target="_blank" rel="noopener" title="${esc(u)}">gh ${esc(ghShort(u))}</a>`
+            );
+        });
+        (lk.other || []).filter(u => /exploit/i.test(u)).slice(0, 1).forEach(u => {
+            chips.push(
+                `<a class="link-chip link-chip-other" href="${esc(u)}" target="_blank" rel="noopener" title="${esc(u)}">↗ ${esc(ghShort(u))}</a>`
+            );
+        });
+
+        const extra = (lk.poc || []).length + (lk.github || []).length +
+            (lk.nuclei_github || []).length + (lk.other || []).length - chips.length;
+        if (extra > 0) {
+            chips.push(`<span class="link-none">+${extra}</span>`);
+        }
+        return chips.length
+            ? `<span class="link-cell">${chips.join('')}</span>`
+            : '<span class="link-none">—</span>';
+    }
+
+    function renderLinksDetail(cve) {
+        const row = nucleiByCve[(cve || '').toUpperCase()];
+        const lk = (row && row.links) || {};
+        const hasAny = (lk.nuclei_github || []).length || (lk.github || []).length ||
+            (lk.poc || []).length || (lk.other || []).length;
+        if (!hasAny) return '';
+        let h = '<div style="margin-bottom:14px;padding:10px;border:1px solid #334155;border-radius:6px;">';
+        h += '<p><b>Links</b> (Nuclei references + CISA notes)</p><ul style="font-size:12px;">';
+        const add = (label, urls, cls) => {
+            (urls || []).forEach(u => {
+                h += `<li><span style="color:${cls}">${label}</span> <a href="${esc(u)}" target="_blank">${esc(u)}</a></li>`;
+            });
+        };
+        add('nuclei', lk.nuclei_github, '#86efac');
+        add('poc', lk.poc, '#fcd34d');
+        add('github', lk.github, '#67e8f9');
+        add('other', lk.other, '#cbd5e1');
+        h += '</ul></div>';
+        return h;
+    }
+
+    // ── Nuclei template column (from cve-nuclei-map.json) --------------
+    function renderNucleiCell(cve) {
+        const row = nucleiByCve[(cve || '').toUpperCase()];
+        if (!row || !row.has_nuclei_template) {
+            return '<span class="tag tag-nuclei-no">NO TEMPLATE</span>';
+        }
+        const n = row.template_count || (row.templates || []).length;
+        const first = (row.templates || [])[0] || '';
+        const fname = first ? first.split('/').pop() : '';
+        const linkDir = 'nuclei-linked/' + esc(cve) + '/';
+        const yamlHref = first ? esc(first) : linkDir;
+        return `<span class="tag tag-nuclei-yes">YES (${n})</span>
+                <span class="nuclei-path">
+                  <a href="${yamlHref}" target="_blank" title="${esc(first)}">${esc(fname)}</a>
+                  · <a href="${esc(linkDir)}" target="_blank">folder</a>
+                </span>`;
+    }
+
+    // ── Reviewed-cell rendering ---------------------------------------
+    function renderReviewCell(cve) {
+        const r       = reviews[cve] || {};
+        const checked = !!r.reviewed;
+        if (!reviewFull) {
+            return `
+            <span class="rev-cell rev-cell-simple" data-cve="${esc(cve)}">
+                <input type="checkbox" class="rev-chk"
+                       data-cve="${esc(cve)}" ${checked ? 'checked' : ''}>
+            </span>`;
+        }
+        const name    = esc(r.reviewer || '');
+        const note    = esc(r.note || '');
+        const at      = r.at ? fmtDate(r.at) : '';
+        const meta    = checked && at
+            ? `<span class="rev-meta" title="reviewed ${at}${note ? ' · '+note : ''}">
+                   ${esc(at)}
+               </span>`
+            : '';
+        return `
+            <span class="rev-cell" data-cve="${esc(cve)}">
+                <input type="checkbox" class="rev-chk"
+                       data-cve="${esc(cve)}" ${checked ? 'checked' : ''}>
+                <input type="text" class="rev-input"
+                       data-cve="${esc(cve)}" data-note="${note}"
+                       value="${name}" placeholder="handle"
+                       maxlength="60">
+                ${meta}
+            </span>`;
+    }
+
+    function postReview(cve, reviewed, reviewer, note, chkEl) {
+        // Lock the row briefly so a hyper-fast operator can't
+        // double-fire the POST while the previous one is still in flight.
+        if (chkEl) chkEl.disabled = true;
+        return authFetch('/api/reviews', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ cve: cve,
+                                      reviewed: !!reviewed,
+                                      reviewer: reviewer || '',
+                                      note: note || '' }),
+        })
+        .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+        .then(payload => {
+            if (reviewed) {
+                reviews[cve] = payload;
+                toast(reviewFull
+                    ? '✔ ' + cve + ' marked reviewed by ' + (payload.reviewer || reviewer)
+                    : '✔ ' + cve + ' reviewed', 'ok');
+            } else {
+                delete reviews[cve];
+                toast('✘ ' + cve + ' cleared', 'ok');
+            }
+            // Refresh just the meta cell next to the affected row so the
+            // timestamp appears without a full table redraw.
+            refreshRowMeta(cve, payload);
+            refreshReviewedKpi();
+        })
+        .catch(err => {
+            toast('save failed: ' + err.message, 'err');
+            if (chkEl) chkEl.checked = !reviewed; // roll back the UI
+        })
+        .finally(() => { if (chkEl) chkEl.disabled = false; });
+    }
+
+    function refreshRowMeta(cve, payload) {
+        const cell = $(`.rev-cell[data-cve="${cve}"]`);
+        if (!cell.length) return;
+        if (reviewFull) {
+            cell.find('.rev-meta').remove();
+            if (payload && payload.reviewed && payload.at) {
+                const at = fmtDate(payload.at);
+                cell.append(`<span class="rev-meta"
+                                  title="reviewed ${at}${payload.note ? ' · '+payload.note : ''}">
+                                ${esc(at)}
+                             </span>`);
+            }
+        }
+        // Highlight (or un-highlight) the entire row so a quick scan of
+        // the table reveals which CVEs still need attention.
+        const tr = cell.closest('tr');
+        if (payload && payload.reviewed) tr.addClass('kev-reviewed');
+        else                              tr.removeClass('kev-reviewed');
+    }
+
+    function refreshReviewedKpi() {
+        const n = Object.values(reviews).filter(r => r && r.reviewed).length;
+        $('#kpiReviewed').text(n.toLocaleString());
+        $('#hudRevTotal').text(n.toLocaleString());
+    }
+
+    function applyReviewedRowStyle() {
+        // After every DataTables redraw, re-apply the "reviewed" row
+        // class — DataTables rebuilds <tr>s so our classList changes
+        // would otherwise be wiped on pagination / sort.
+        $('#kevTable tbody tr').each(function () {
+            const cve = $(this).find('.rev-chk').data('cve');
+            if (cve && reviews[cve] && reviews[cve].reviewed) {
+                $(this).addClass('kev-reviewed');
+            } else {
+                $(this).removeClass('kev-reviewed');
+            }
+        });
+    }
+});
+</script>
+
+</body>
+</html>

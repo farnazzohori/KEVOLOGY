@@ -1,0 +1,21 @@
+{
+  "kev_url": "https://raw.githubusercontent.com/cisagov/kev-data/refs/heads/develop/known_exploited_vulnerabilities.json",
+  "kev_file": "KEV.json",
+  "server_port": 8009,
+  "update_interval": 86400,
+  "daily_update_hour": 3,
+  "nuclei_templates_dir": "DB-Exploits/nuclei-templates-main",
+  "ui_variant": "git",
+  "auth": {
+    "username": "ninjas",
+    "password": "change-me",
+    "secret": "change-me"
+  },
+  "proxy": {
+    "enabled": false,
+    "host": "127.0.0.1",
+    "port": 8080,
+    "username": "",
+    "password": ""
+  }
+}

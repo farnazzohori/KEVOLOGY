@@ -1,0 +1,39 @@
+Ninjas KEV — GitHub upload pack
+================================
+
+Folder: ninjas-kev-github/
+Repo:   https://github.com/farnazzohori/ninjas-kev
+
+WHAT IS INCLUDED
+----------------
+README.md + assets/ninjas-kev-hero.png (Ninjas banner)
+app.py, index.html, login.html, static/
+config.json (placeholders — change-me)
+apply.sh, run.sh, requirements.txt
+NUCLEI_TEMPLATES.md, .gitignore
+
+NOT INCLUDED (created on server)
+--------------------------------
+.venv, KEV.json, reviews.json, nuclei templates
+
+GITHUB — CREATE REPO FIRST
+--------------------------
+Name:        ninjas-kev
+Description: CISA KEV operator dashboard with Nuclei coverage and analyst review workflow
+Visibility:  Private (recommended)
+Topics:      kev, cisa, nuclei, cve, security, dashboard, purple-team
+
+PUSH COMMANDS
+-------------
+cd /path/to/ninjas-kev-github
+git init
+git add .
+git commit -m "Initial commit: Ninjas KEV operator console"
+git branch -M main
+git remote add origin https://github.com/farnazzohori/ninjas-kev.git
+git push -u origin main
+
+ON SERVER AFTER CLONE
+---------------------
+nano config.json    # set password + secret
+bash apply.sh
