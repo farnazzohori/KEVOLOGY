@@ -60,20 +60,6 @@ UI: cyberpunk/CRT theme, dark/light mode, KPI strip, top vendor/product breakdow
 
 ---
 
-## Images
-
-| | |
-|---|---|
-| **Logo** | ![Ninjas KEV Logo](./assets/ninjas-kev-logo.png) |
-| **Dashboard** | ![Ninjas KEV Dashboard](./assets/ninjas-kev-hero.png) |
-
-Asset paths (for GitHub):
-
-- Logo: [`./assets/ninjas-kev-logo.png`](./assets/ninjas-kev-logo.png)
-- Dashboard: [`./assets/ninjas-kev-hero.png`](./assets/ninjas-kev-hero.png)
-
----
-
 ## Features
 
 | Feature | What it does |
